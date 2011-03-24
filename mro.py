@@ -1,5 +1,6 @@
 """C3 algorithm by Samuele Pedroni (with readability enhanced by me)."""
 
+from collections import defaultdict
 
 class dep(object):
 
@@ -15,48 +16,67 @@ class dep(object):
         return self.name
 
 
-
-def merge(seqs):
-    print '\n\nCPL[%s]=%s' % (seqs[0][0],seqs),
-    res = []; i=0
+class LinearizeError(ValueError):
+    pass
+    
+def merge(seqs, cache):
+    key = tuple(tuple(x) for x in seqs)
+    if key in cache:
+        print 'cached', seqs[0][0]
+        return cache[key]
+    print '\n\nCPL[%s] = merge(*%s)' % (seqs[0][0],seqs),
+    print key
+    res = [];
+    i=0
     while 1:
-      nonemptyseqs=[seq for seq in seqs if seq]
-      if not nonemptyseqs: return res
-      i+=1; print '\n',i,'round: candidates...',
+      nonemptyseqs = [seq for seq in seqs if seq]
+      if not nonemptyseqs:
+          return res
+      i += 1
+      print '\n',i,'round: candidates...',
+      
       for seq in nonemptyseqs: # find merge candidates among seq heads
           cand = seq[0]; print ' ',cand,
           nothead=[s for s in nonemptyseqs if cand in s[1:]]
-          if nothead: cand=None #reject candidate
-          else: break
-      if not cand: raise "Inconsistent hierarchy"
+          if nothead:
+              cand=None #reject candidate
+          else:
+              break
+      if not cand:
+          raise LinearizeError("inconsistent hierarchy")
       res.append(cand)
       for seq in nonemptyseqs: # remove cand
           if seq[0] == cand: del seq[0]
 
-def mro(C):
+def linearize(root, graph):
     "Compute the class precedence list (mro) according to C3"
     # I have removed adding [C.get_deps()] on the end to remove the requirement that they are in order.
-    return merge([[C]]+map(mro,C.get_deps()))
+    autograph = defaultdict(list)
+    for k, v in graph.items():
+        autograph[k] = list(v)
+    return _linearize(root, autograph, {})
+    
+def _linearize(root, graph, cache):
+    return merge(
+        [[root]] +[_linearize(x, graph, cache) for x in graph[root]],
+        cache
+    )
 
 def print_mro(C):
-    print '\nMRO[%s]=%s' % (C,mro(C))
+    print '\nMRO[%s]=%s' % (C, linearize(C))
+
+
+
+graph = {
+    'a2': ['Y', 'a1'],
+    'b2': ['b1'],
+    'A': ['a2', 'a1'],
+    'B': ['A', 'b2', 'b1'],
+    'X': ['a1'],
+    'root': ['X', 'Y', 'B', 'A']
+    }
 
 
 
 
-
-dep('a1')
-dep('a2', 'Y', 'a1')
-dep('b1')
-dep('b2', 'b1')
-dep('A', 'a2', 'a1')
-dep('B', 'A', 'b2', 'b1')
-
-dep('X', 'a1')
-dep('Y')
-
-root = dep('root', 'X', 'Y', 'B', 'A')
-
-
-
-print_mro(root)
+print linearize('root', graph)
