@@ -1,4 +1,3 @@
-"""C3 algorithm by Samuele Pedroni (with readability enhanced by me)."""
 
 from collections import defaultdict
 
@@ -37,14 +36,27 @@ def merge(sequences):
                 del seq[0]
 
 
-def linearize(graph, order=True):
+def class_graph(cls):
+    graph = {}
+    _add_to_class_graph(cls, graph)
+    return graph
+
+def _add_to_class_graph(cls, graph):
+    if cls not in graph:
+        graph[cls] = cls.__bases__
+        for x in graph[cls]:
+            _add_to_class_graph(x, graph)
+    
+    
+def linearize(graph, heads=None, order=True):
     "Compute the class precedence list (MRO or method resolution order) according to C3"
     results = {}
     graph = defaultdict(list, graph)
-    for head in sorted(graph, key=lambda k: len(graph[k])):
+    
+    for head in heads or sorted(graph, key=lambda k: len(graph[k])):
         _linearize(head, graph, order, results)
     return results
-    
+
 def _linearize(head, graph, order, results):
     if head in results:
         return results[head]
@@ -57,52 +69,106 @@ def _linearize(head, graph, order, results):
     return res
 
 
-if __name__ == '__main__':
+
+
+
+
+
+# TESTS
+
+def assertEqual(a, b):
+    if a != b:
+        assert False, '%r != %r' % (a, b)
+
+
+def test_merge():
+    
+    A, B, C, D, E, F, G, O = 'ABCDEFGO'
+    def do_test_merge(seqs, res):
+        assertEqual(merge(seqs), res)
+    
+    yield do_test_merge, [[O]], [O]
+    yield do_test_merge, [[D], [D, O]], [D, O]
+    yield do_test_merge, [[E], [E, O]], [E, O]
+    yield do_test_merge, [[F], [F, O]], [F, O]
+    yield do_test_merge, [[B], [B, D, E], [D, O], [E, O]], [B, D, E, O]
+    yield do_test_merge, [[C], [C, D, F], [D, O], [F, O]], [C, D, F, O]
+    yield do_test_merge, [[A], [A, B, C], [B, D, E], [C, D, F], [D, O], [E, O], [F, O]], [A, B, C, D, E, F, O]
+
+
+def test_linearize():
     
     A, B, C, D, E, F, G, O = 'ABCDEFGO'
     
-    assert merge([[O]]) == [O]
-    assert merge([[D], [D, O]]) == [D, O]
-    assert merge([[E], [E, O]]) == [E, O]
-    assert merge([[F], [F, O]]) == [F, O]
-    assert merge([[B], [B, D, E], [D, O], [E, O]]) == [B, D, E, O]
-    assert merge([[C], [C, D, F], [D, O], [F, O]]) == [C, D, F, O]
-    assert merge([[A], [A, B, C], [B, D, E], [C, D, F], [D, O], [E, O], [F, O]]) == [A, B, C, D, E, F, O]
-    
-    assert linearize({
+    def do_test_linearize(head, graph, expected):
+        res = linearize(graph, heads=[head] if head else None)
+        if head:
+            res = res[head]
+        assertEqual(res, expected)
+        
+    yield do_test_linearize, None, {
         D: [O],
-    }) == {
+    }, {
         D: [D, O],
         O: [O],
     }
     
-    assert linearize({
+    yield do_test_linearize, None, {
         D: [O],
         E: [O],
         B: [D, E],
-    }) == {
+    }, {
         D: [D, O],
         E: [E, O],
         B: [B, D, E, O],
         O: [O]
     }
     
-    assert linearize({
+    yield do_test_linearize, A, {
         D: [O],
         E: [O],
         F: [O],
         B: [D, E],
         C: [D, F],
         A: [B, C],
-    })[A] == [A, B, C, D, E, F, O]
+    }, [A, B, C, D, E, F, O]
+
+
+def test_class_mro():
     
-    exit()
-    graph = {
-        'a2': ['Y', 'a1'],
-        'b2': ['b1'],
-        'A': ['a2', 'a1'],
-        'B': ['A', 'b2', 'b1'],
-        'X': ['a1'],
-        'root': ['X', 'Y', 'B', 'A']
-        }
-    print linearize('root', graph)
+    O = object
+    def assert_class_mro(cls):
+        graph = class_graph(cls)
+        linear = linearize(graph)
+        for cls, mro in linear.iteritems():
+            assertEqual(mro, list(cls.__mro__))
+    
+    class B(O): pass
+    class C(O): pass
+    class A1(B, C): pass
+    yield assert_class_mro, A1
+    
+    class F(O): pass
+    class E(O): pass
+    class D(O): pass
+    class C(D,F): pass
+    class B(D,E): pass
+    class A2(B,C): pass
+    yield assert_class_mro, A2
+    
+    class A(O): pass
+    class B(O): pass
+    class C(O): pass
+    class D(O): pass
+    class E(O): pass
+    class K1(A,B,C): pass
+    class K2(D,B,E): pass
+    class K3(D,A):   pass
+    class Z(K1,K2,K3): pass
+    yield assert_class_mro, Z
+
+
+if __name__ == '__main__':
+    import nose
+    nose.runmodule()
+    
