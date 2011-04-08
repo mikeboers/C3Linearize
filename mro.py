@@ -5,41 +5,42 @@ from collections import defaultdict
 
 class LinearizeError(ValueError):
     pass
+
+
+def merge(sequences):
     
-def merge(seqs):
     # Make sure we don't actually mutate anything we are getting as input.
-    seqs = [x[:] for x in seqs]
-    # print 'merge', seqs
-    res = [];
-    i=0
-    while 1:
-      nonemptyseqs = [seq for seq in seqs if seq]
-      if not nonemptyseqs:
-          return res
-      i += 1
-      # print '\n',i,'round: candidates...',
-      
-      for seq in nonemptyseqs: # find merge candidates among seq heads
-          cand = seq[0]
-          # print ' ',cand,
-          nothead=[s for s in nonemptyseqs if cand in s[1:]]
-          if nothead:
-              cand=None #reject candidate
-          else:
-              break
-      if not cand:
-          raise LinearizeError("inconsistent hierarchy")
-      res.append(cand)
-      for seq in nonemptyseqs: # remove cand
-          if seq[0] == cand: del seq[0]
+    sequences = [list(x) for x in sequences]
+    
+    result = []
+    
+    while True:
+        
+        # Clear out blank sequences.
+        sequences = [x for x in sequences if x]
+        if not sequences:
+            return result
+
+        # Find the first clean head.
+        for seq in sequences:
+            head = seq[0]
+            # If this is not a bad head (ie. not in any other sequence)...
+            if not any(head in s[1:] for s in sequences):
+                break
+        else:
+            raise LinearizeError("inconsistent hierarchy")
+        
+        # Move the head from the front of all sequences to the end of results.
+        result.append(head)
+        for seq in sequences:
+            if seq[0] == head:
+                del seq[0]
+
 
 def linearize(graph, order=True):
     "Compute the class precedence list (MRO or method resolution order) according to C3"
-    # I have removed adding [C.get_deps()] on the end to remove the requirement that they are in order.
     results = {}
-    graph = defaultdict(list, dict(
-        (k, list(v)) for k, v in graph.iteritems()
-    ))
+    graph = defaultdict(list, graph)
     for head in sorted(graph, key=lambda k: len(graph[k])):
         _linearize(head, graph, order, results)
     return results
