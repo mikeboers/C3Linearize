@@ -3,7 +3,7 @@ C3Linearize
 
 **C3Linearize** is a Python implementation of the C3 linearization algorithm that Python uses for its class method resolution order ("MRO"). The difference is that now we can perform this on any type of object!
 
-That being said, I'll demonstrate by just using classes anyways.
+That being said, I'll demonstrate by just using classes anyways. (This is using Python 2.6 syntax, but this module works with 2.3 through 3.2.)
 
     from c3linearize import linearize, class_graph
 
