@@ -1,12 +1,26 @@
+"""A module to perform C3 linearization on arbitrary objects.
+
+The primary usage of this module is to build a depency graph using
+`build_graph`, which returns a dict mapping objects to a list of their
+dependencies. Then, to linearize the graph with the `linearize` function.
+
+
+"""
 
 from collections import defaultdict
 
 
-class LinearizeError(ValueError):
+class Error(ValueError):
     pass
 
 
 def merge(sequences):
+    """Merge object sequences preserving order in initial sequences.
+    
+    This is the merge function as described for C3, see:
+    http://www.python.org/download/releases/2.3/mro/
+    
+    """
     
     # Make sure we don't actually mutate anything we are getting as input.
     sequences = [list(x) for x in sequences]
@@ -27,7 +41,7 @@ def merge(sequences):
             if not any(head in s[1:] for s in sequences):
                 break
         else:
-            raise LinearizeError("inconsistent hierarchy")
+            raise Error("inconsistent hierarchy")
         
         # Move the head from the front of all sequences to the end of results.
         result.append(head)
@@ -36,20 +50,40 @@ def merge(sequences):
                 del seq[0]
 
 
-def class_graph(cls):
+
+def build_graph(obj, bases_func):
+    """Build a graph of an object given a function to return it's bases."""
     graph = {}
-    _add_to_class_graph(cls, graph)
+    _add_to_graph(obj, graph, bases_func)
     return graph
 
-def _add_to_class_graph(cls, graph):
-    if cls not in graph:
-        graph[cls] = cls.__bases__
-        for x in graph[cls]:
-            _add_to_class_graph(x, graph)
+def _add_to_graph(obj, graph, bases_func):
+    """Internally used for `build_graph`."""
+    if obj not in graph:
+        graph[obj] = bases_func(obj)
+        for x in graph[obj]:
+            _add_to_graph(x, graph, bases_func)
+
+
+def class_graph(cls):
+    """Extract a graph from a given class."""
+    return build_graph(cls, lambda cls: cls.__bases__)
     
     
 def linearize(graph, heads=None, order=True):
-    "Compute the class precedence list (MRO or method resolution order) according to C3"
+    """Linearize a dependency graph using the C3 method.
+    
+    Parameters:
+        graph: A mapping from objects to a sequence of their dependencies.
+        heads: A sequence of the objects to linearize; defaults to
+            linearizing the entire graph.
+        order: Whether to maintain the order of direct dependants (defaults to
+            True to match the Python MRO).
+    
+    Returns a dict mapping objects to their linearization.
+    
+    """
+    
     results = {}
     graph = defaultdict(list, graph)
     
@@ -57,7 +91,9 @@ def linearize(graph, heads=None, order=True):
         _linearize(head, graph, order, results)
     return results
 
+
 def _linearize(head, graph, order, results):
+    """Internally used by linearize."""
     if head in results:
         return results[head]
     res = merge(
